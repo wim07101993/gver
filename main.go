@@ -103,7 +103,7 @@ func main() {
 			slog.String("mainBranch", mainBranchRegex),
 			slog.String("currentBranch", branchName))
 	} else {
-		version.Release = branchName
+		version.Prerelease = branchName
 	}
 
 	switch outputFormat {
