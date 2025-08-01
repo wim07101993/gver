@@ -75,6 +75,5 @@ func Parse(s string) (*SemVer, error) {
 		}
 	}
 
-	println(version.Full())
 	return &version, nil
 }

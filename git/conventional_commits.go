@@ -17,11 +17,6 @@ func MajorMinorPatch(repo *git.Repository, majorRegexp *regexp.Regexp, minorRege
 	if err != nil {
 		return 0, 0, 0, errors.Wrap(err, "Failed to get latest version tag")
 	}
-	if version != nil {
-		major = version.Major
-		minor = version.Minor
-		patch = version.Patch
-	}
 
 	commits, err := repo.Log(&git.LogOptions{All: true})
 	if err != nil {
@@ -36,6 +31,8 @@ func MajorMinorPatch(repo *git.Repository, majorRegexp *regexp.Regexp, minorRege
 		commitCount++
 
 		if commit.Hash == hash {
+			slog.Debug("Found commit on which the version tag is set, stop increasing version",
+				slog.String("hash", commit.Hash.String()))
 			return storer.ErrStop
 		}
 
@@ -91,6 +88,13 @@ func MajorMinorPatch(repo *git.Repository, majorRegexp *regexp.Regexp, minorRege
 		slog.Warn("No git history found (no commits)")
 	} else if firstCommit.NumParents() != 0 {
 		slog.Warn("Did not find the complete git history. Version might be incorrect.")
+	}
+
+	if version != nil {
+		major += version.Major
+		minor += version.Minor
+		patch += version.Patch
+		slog.Debug("Increasing major minor patch with found tag")
 	}
 
 	return major, minor, patch, nil
