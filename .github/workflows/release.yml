@@ -24,10 +24,10 @@ jobs:
       run: go test -v
 
     - name: Build
-      run: go build -v
+      run: go build -v cmd/main.go
 
-    - name: ls
-      run: ls
+    - name: Rename artifcat
+      run: mv main gver
 
     - name: Upload version file as artifact
       uses: actions/upload-artifact@v4.6.2
