@@ -36,6 +36,10 @@ jobs:
         path: gver
         if-no-files-found: error
 
+    - name: ls
+      run: ls -all
+
+      
     - name: Create release
       uses: ncipollo/release-action@v1
       with:
