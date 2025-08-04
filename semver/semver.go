@@ -1,42 +1,32 @@
 package semver
 
 import (
-	"fmt"
 	"github.com/pkg/errors"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
-const Regex = `^(?P<Major>0|[1-9]\d*)\.(?P<Minor>0|[1-9]\d*)\.(?P<Patch>0|[1-9]\d*)(?:-(?P<Prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<Build>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$`
-
-var verregexp *regexp.Regexp
-
-func init() {
-	var err error
-	verregexp, err = regexp.Compile(Regex)
-	if err != nil {
-		log.Fatal(errors.Wrap(err, "failed to compile semver regex"))
-	}
-}
+var semverRegex = regexp.MustCompile(`^(?P<Major>0|[1-9]\d*)\.(?P<Minor>0|[1-9]\d*)\.(?P<Patch>0|[1-9]\d*)(?:-(?P<Prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<Build>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$`)
+var allowedBuildCharsRegex = regexp.MustCompile(`[^A-Za-z0-9-.]`)
+var allowedPrereleaseCharsRegex = regexp.MustCompile(`[^A-Za-z0-9-.]`)
 
 type SemVer struct {
-	Major      int
-	Minor      int
-	Patch      int
-	Prerelease string
-	Build      string
+	MajorMinorPatch MajorMinorPatch
+	Prerelease      string
+	Build           string
 }
 
-func (v *SemVer) MajorMinorPatch() string {
-	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+func (v *SemVer) AddMajorMinorPatch(mmp MajorMinorPatch) {
+	v.MajorMinorPatch.Major += mmp.Major
+	v.MajorMinorPatch.Minor += mmp.Minor
+	v.MajorMinorPatch.Patch += mmp.Patch
 }
 
-func (v *SemVer) Full() string {
+func (v *SemVer) String() string {
 	builder := strings.Builder{}
 
-	builder.WriteString(v.MajorMinorPatch())
+	builder.WriteString(v.MajorMinorPatch.String())
 
 	if v.Prerelease != "" {
 		builder.WriteString("-")
@@ -52,21 +42,21 @@ func (v *SemVer) Full() string {
 }
 
 func Parse(s string) (*SemVer, error) {
-	match := verregexp.FindStringSubmatch(s)
+	match := semverRegex.FindStringSubmatch(s)
 	if len(match) == 0 {
 		return nil, errors.New("failed to parse SemVer according to regex")
 	}
 
 	version := SemVer{}
-	for i, name := range verregexp.SubexpNames() {
+	for i, name := range semverRegex.SubexpNames() {
 		if i != 0 && name != "" {
 			switch name {
 			case "Major":
-				version.Major, _ = strconv.Atoi(match[i])
+				version.MajorMinorPatch.Major, _ = strconv.ParseUint(match[i], 10, 64)
 			case "Minor":
-				version.Minor, _ = strconv.Atoi(match[i])
+				version.MajorMinorPatch.Minor, _ = strconv.ParseUint(match[i], 10, 64)
 			case "Patch":
-				version.Patch, _ = strconv.Atoi(match[i])
+				version.MajorMinorPatch.Patch, _ = strconv.ParseUint(match[i], 10, 64)
 			case "Prerelease":
 				version.Prerelease = match[i]
 			case "Build":
@@ -76,4 +66,14 @@ func Parse(s string) (*SemVer, error) {
 	}
 
 	return &version, nil
+}
+
+func SanitizeBuild(s string) string {
+	s = strings.Trim(s, ".")
+	return allowedBuildCharsRegex.ReplaceAllString(s, "-")
+}
+
+func SanitizePrerelease(s string) string {
+	s = strings.Trim(s, ".")
+	return allowedPrereleaseCharsRegex.ReplaceAllString(s, "-")
 }
