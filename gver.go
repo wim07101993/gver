@@ -1,15 +1,16 @@
 package gver
 
 import (
+	"gver/semver"
+	"log"
+	"log/slog"
+	"regexp"
+
 	"github.com/go-git/go-git/v6"
 	"github.com/go-git/go-git/v6/plumbing"
 	"github.com/go-git/go-git/v6/plumbing/object"
 	"github.com/go-git/go-git/v6/plumbing/storer"
 	"github.com/pkg/errors"
-	"gver/semver"
-	"log"
-	"log/slog"
-	"regexp"
 )
 
 var DefaultMajorRegex = regexp.MustCompile(`^(?P<type>[\w\s-]+)!:\s(?P<message>(?:.*\n)*.*)$`)
@@ -70,12 +71,12 @@ func BuildMajorMinorPatchFromCommits(
 	majorRegexp *regexp.Regexp,
 	minorRegexp *regexp.Regexp) (semver.MajorMinorPatch, error) {
 
-	var firstCommit *object.Commit
+	var oldestCommit *object.Commit
 	var commitCount int
 
 	version := semver.MajorMinorPatch{}
 	err := commits.ForEach(func(commit *object.Commit) error {
-		firstCommit = commit
+		oldestCommit = commit
 		commitCount++
 
 		if commit.Hash == start {
@@ -127,10 +128,13 @@ func BuildMajorMinorPatchFromCommits(
 
 	slog.Debug("Parsed all commits.", slog.Int("count", commitCount))
 
-	if firstCommit == nil {
-		slog.Warn("No git history found (no commits)")
-	} else if firstCommit.NumParents() != 0 {
-		slog.Warn("Did not find the complete git history. Version might be incorrect.")
+	// if the oldest commit which we checked still has parents notify user (unless it is the start commit as specified by the param)
+	if oldestCommit.Hash != start {
+		if oldestCommit == nil {
+			slog.Warn("No git history found (no commits)")
+		} else if oldestCommit.NumParents() != 0 {
+			slog.Warn("Did not find the complete git history. Version might be incorrect.")
+		}
 	}
 
 	return version, nil

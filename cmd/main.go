@@ -1,17 +1,26 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/go-git/go-git/v6"
-	"github.com/pkg/errors"
 	"gver"
 	"log"
 	"log/slog"
+	"os"
 	"regexp"
+	"strings"
+
+	"github.com/go-git/go-git/v6"
+	"github.com/pkg/errors"
 )
 
-const defaultFormat = "full"
+const (
+	SemverFormat          = "semver"
+	MajorMinorPatchFormat = "majorminorpatch"
+	AllFormats            = "all"
+)
+const defaultFormat = SemverFormat
 
 var verboseLogging bool
 var help bool
@@ -34,7 +43,13 @@ func SetupFlags() {
 	flag.StringVar(&mainBranchRegex, "mainBranch", gver.DefaultMainBranch.String(), "The branch which is counted as release branch (regex supported). (defaults to main).")
 	flag.StringVar(&majorRegex, "major", gver.DefaultMajorRegex.String(), "The regex by which de major number is counted.")
 	flag.StringVar(&patchRegex, "minor", gver.DefaultPatchRegex.String(), "The regex by which de patch number is counted (only if message does not match major).")
-	flag.StringVar(&outputFormat, "format", defaultFormat, "The requested output format. Can be either full or majorMinorPath. (defaults to full)")
+	flag.StringVar(&outputFormat, "format", defaultFormat, `The requested output format (defaults to semver). Can be either
+		- major (major)
+		- minor (minor)
+		- patch (patch)
+		- majorMinorPath (major.minor.patch)
+		- semver (major.minor.patch-prerelease+build)
+		- all (a json document containing all other formats)`)
 
 	if mainBranchRegex == "" {
 		mainBranchRegex = "main"
@@ -79,10 +94,33 @@ func main() {
 		log.Fatal(errors.Wrap(err, "failed to get latest version tag from repo"))
 	}
 
-	switch outputFormat {
-	case "full":
+	switch strings.ToLower(outputFormat) {
+	case SemverFormat:
 		fmt.Println(semver.String())
-	case "majorMinorPatch":
+	case MajorMinorPatchFormat:
 		fmt.Println(semver.MajorMinorPatch.String())
+	case AllFormats:
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		err = encoder.Encode(struct {
+			Major           uint64
+			Minor           uint64
+			Patch           uint64
+			Prerelease      string
+			BuildMetadata   string
+			MajorMinorPatch string
+			Semver          string
+		}{
+			Major:           semver.MajorMinorPatch.Major,
+			Minor:           semver.MajorMinorPatch.Minor,
+			Patch:           semver.MajorMinorPatch.Patch,
+			Prerelease:      semver.Prerelease,
+			BuildMetadata:   semver.Build,
+			MajorMinorPatch: semver.MajorMinorPatch.String(),
+			Semver:          semver.String(),
+		})
+		if err != nil {
+			panic(err)
+		}
 	}
 }
